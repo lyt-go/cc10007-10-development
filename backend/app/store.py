@@ -4,15 +4,27 @@
 """
 from __future__ import annotations
 
+from copy import deepcopy
 from typing import Any
 
 from app.seed import SEED_ROWS
 
+# 运营概览只汇总这 18 个业务模块；事件记录、复算明细、核对表、留痕属于支撑表，不进概览。
+BUSINESS_MODULES = {
+    "sequence", "rfm", "churn", "recommend", "attrmodel", "activity", "realtime",
+    "budget", "lifetime", "abvariant", "dashboard", "scorecard", "cluster",
+    "comparison", "datadrift", "pushplan", "metricdrill", "tacticlib",
+}
+
 
 class Store:
     def __init__(self) -> None:
+        self.reset()
+
+    def reset(self) -> None:
+        """重置为示例数据；演示与回归样例需要重复跑同一套流程时使用。"""
         self._tables: dict[str, list[dict[str, Any]]] = {
-            name: [dict(row) for row in rows] for name, rows in SEED_ROWS.items()
+            name: [deepcopy(row) for row in rows] for name, rows in SEED_ROWS.items()
         }
 
     def module_names(self) -> list[str]:
@@ -27,9 +39,21 @@ class Store:
                 return row
         return None
 
+    def next_id(self, module: str) -> int:
+        return max((int(row.get("id", 0)) for row in self.rows(module)), default=0) + 1
+
+    def append(self, module: str, entry: dict[str, Any]) -> dict[str, Any]:
+        self.rows(module).append(entry)
+        return entry
+
+    def replace_rows(self, module: str, rows: list[dict[str, Any]]) -> None:
+        self._tables[module] = rows
+
     def overview(self) -> dict[str, object]:
         modules: list[dict[str, object]] = []
         for name in self.module_names():
+            if name not in BUSINESS_MODULES:
+                continue
             rows = self.rows(name)
             modules.append({
                 "name": name,
